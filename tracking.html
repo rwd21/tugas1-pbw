@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracking Pengiriman</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <script src="./js/data.js"></script>
+
+    <nav class="topbar">
+        <a href="dashboard.html" class="brand">SITTA</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="#" id="btnLogout" style="margin-left: auto;">Logout</a>
+    </nav>
+
+    <main class="wrap">
+        <section class="card">
+            <h1>Tracking Pengiriman</h1>
+            <p class="muted">Masukkan Nomor Delivery Order untuk melihat status pengiriman.</p>
+
+            <div class="form-row">
+                <input id="doInput" class="input" type="text" placeholder="Nomor Delivery Order">
+                <button id="btnCari" class="btn btn-primary" type="button">Cari</button>
+            </div>
+
+            <div id="noticeBox" class="notice"></div>
+        </section>
+
+        <section class="card">
+            <h2>Hasil Tracking</h2>
+            <div id="defaultState" class="empty-state">Silakan masukkan nomor DO lalu tekan Cari.</div>
+
+            <div id="resultArea" style="display:none;">
+                <div class="result-grid">
+                    <div>
+                        <ul class="info-list">
+                            <li><strong>Nama Mahasiswa:</strong> <span id="namaMahasiswa">-</span></li>
+                            <li><strong>Status Pengiriman:</strong> <span id="statusPengiriman">-</span></li>
+                            <li><strong>Detail Ekspedisi:</strong> <span id="detailEkspedisi">-</span></li>
+                            <li><strong>Tanggal Kirim:</strong> <span id="tanggalKirim">-</span></li>
+                            <li><strong>Jenis Paket:</strong> <span id="jenisPaket">-</span></li>
+                            <li><strong>Total Pembayaran:</strong> <span id="totalPembayaran">-</span></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <strong>Progress Pengiriman</strong>
+                        <div class="progress-wrap">
+                            <div class="progress-track">
+                                <div id="progressBar" class="progress-bar"></div>
+                            </div>
+                            <div id="progressLabel" class="muted">Belum dipilih</div>
+                        </div>
+                        <ul id="timelineList" class="timeline"></ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let user = (() => {
+            try {
+                return JSON.parse(localStorage.getItem('sittaCurrentUser'));
+            } catch (error) {
+                return null;
+            }
+        })();
+
+        function parseUserFromHash() {
+            try {
+                if (location.hash && location.hash.indexOf('#user=') === 0) {
+                    return JSON.parse(decodeURIComponent(location.hash.slice(6)));
+                }
+            } catch (e) {
+                return null;
+            }
+            return null;
+        }
+
+        // Jika localStorage tidak tersedia (beberapa browser file://), coba ambil dari fragment URL
+        if (!user) {
+            user = parseUserFromHash();
+        }
+
+        function preserveHashToLinks(userObj) {
+            if (!userObj) return;
+            var userHash = '#user=' + encodeURIComponent(JSON.stringify(userObj));
+            document.querySelectorAll('a').forEach(function(a) {
+                var href = a.getAttribute('href');
+                if (!href) return;
+                if (href.indexOf('http') === 0 || href.indexOf('#') === 0 || href.indexOf('mailto:') === 0) return;
+                if (href.indexOf('#user=') !== -1) return;
+                // pastikan tidak menambahkan hash ke link kosong
+                var base = href.split('#')[0];
+                a.setAttribute('href', base + userHash);
+            });
+        }
+
+        const doInput = document.getElementById('doInput');
+        const btnCari = document.getElementById('btnCari');
+        const noticeBox = document.getElementById('noticeBox');
+        const defaultState = document.getElementById('defaultState');
+        const resultArea = document.getElementById('resultArea');
+        const btnLogout = document.getElementById('btnLogout');
+
+        function normalizeRole(role) {
+            return String(role || '').toLowerCase();
+        }
+
+        function getStatusMeta(status) {
+            const normalizedStatus = String(status || '').toLowerCase();
+
+            if (normalizedStatus.includes('selesai')) {
+                return { percent: 100, color: '#16a34a', label: 'Selesai' };
+            }
+
+            if (normalizedStatus.includes('antar')) {
+                return { percent: 85, color: '#22c55e', label: 'Dalam proses antar' };
+            }
+
+            if (normalizedStatus.includes('dikirim')) {
+                return { percent: 60, color: '#f59e0b', label: 'Sedang dikirim' };
+            }
+
+            if (normalizedStatus.includes('perjalanan')) {
+                return { percent: 35, color: '#3b82f6', label: 'Dalam perjalanan' };
+            }
+
+            return { percent: 20, color: '#6b7280', label: 'Menunggu proses' };
+        }
+
+        function showNotice(message) {
+            noticeBox.textContent = message;
+            noticeBox.style.display = 'block';
+        }
+
+        function hideNotice() {
+            noticeBox.textContent = '';
+            noticeBox.style.display = 'none';
+        }
+
+        function renderTracking(data) {
+            const meta = getStatusMeta(data.status);
+            document.getElementById('namaMahasiswa').textContent = data.nama;
+            document.getElementById('statusPengiriman').textContent = data.status;
+            document.getElementById('detailEkspedisi').textContent = data.ekspedisi;
+            document.getElementById('tanggalKirim').textContent = data.tanggalKirim;
+            document.getElementById('jenisPaket').textContent = data.paket;
+            document.getElementById('totalPembayaran').textContent = data.total;
+
+            const progressBar = document.getElementById('progressBar');
+            const progressLabel = document.getElementById('progressLabel');
+            progressBar.style.width = meta.percent + '%';
+            progressBar.style.background = meta.color;
+            progressLabel.textContent = meta.label + ' (' + meta.percent + '%)';
+
+            const timelineList = document.getElementById('timelineList');
+            timelineList.innerHTML = data.perjalanan.map(function(item) {
+                return '<li><strong>' + item.waktu + '</strong><br>' + item.keterangan + '</li>';
+            }).join('');
+
+            defaultState.style.display = 'none';
+            resultArea.style.display = 'block';
+        }
+
+        function cariTracking() {
+            hideNotice();
+
+            const nomorDO = doInput.value.trim();
+            if (!nomorDO) {
+                showNotice('Masukkan Nomor Delivery Order terlebih dahulu.');
+                return;
+            }
+
+            const data = window.dataTracking && window.dataTracking[nomorDO];
+            if (!data) {
+                showNotice('Nomor Delivery Order tidak ditemukan.');
+                defaultState.style.display = 'block';
+                resultArea.style.display = 'none';
+                return;
+            }
+
+            const isAdmin = normalizeRole(user && user.role) === 'administrator';
+            const canAccessOwnData = user && String(user.nama || '').toLowerCase() === String(data.nama || '').toLowerCase();
+
+            if (!isAdmin && !canAccessOwnData) {
+                showNotice('Anda hanya dapat melihat data pengiriman milik Anda sendiri.');
+                defaultState.style.display = 'block';
+                resultArea.style.display = 'none';
+                return;
+            }
+
+            renderTracking(data);
+        }
+
+        btnCari.addEventListener('click', cariTracking);
+        doInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                cariTracking();
+            }
+        });
+
+        btnLogout.addEventListener('click', function(event) {
+            event.preventDefault();
+            // Jika ada user, klik pada nama akan melakukan logout
+            if (user) {
+                localStorage.removeItem('sittaCurrentUser');
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // Jika belum login, arahkan ke halaman login
+            window.location.href = 'login.html';
+        });
+
+        if (user) {
+            // Tampilkan nama user di navbar (menggantikan tulisan "Logout"/"Login")
+            btnLogout.textContent = user.nama;
+            btnLogout.href = '#';
+            btnLogout.title = 'Klik untuk logout';
+            // Tambahkan fragment user pada semua link internal agar tetap tersertakan di navigasi file://
+            preserveHashToLinks(user);
+        } else {
+            showNotice('Silakan login terlebih dahulu.');
+            btnCari.disabled = true;
+            doInput.disabled = true;
+            btnLogout.textContent = 'Login';
+            btnLogout.href = 'login.html';
+            btnLogout.title = 'Login ke SITTA';
+        }
+    </script>
+</body>
+</html>

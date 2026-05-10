@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stok Bahan Ajar - SITTA</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <script src="./js/data.js"></script>
+
+    <nav class="topbar">
+        <a href="dashboard.html" class="brand">SITTA</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="#" id="btnLogout" style="margin-left: auto;">Logout</a>
+    </nav>
+
+    <main class="wrap">
+        <section class="card">
+            <h1>Informasi Stok Bahan Ajar</h1>
+            <p class="muted">Daftar stok bahan ajar dari data dummy pada <code>data.js</code>.</p>
+
+            <div id="noticeBox" class="notice"></div>
+            <div id="restrictedNotice" class="restricted-notice" style="display: none;">
+                Anda tidak memiliki akses untuk menambahkan stok baru. Hanya admin yang bisa melakukan ini.
+            </div>
+
+            <div class="action-row">
+                <button id="btnTambahStok" class="btn btn-primary">
+                    <i class="fa-solid fa-plus"></i> Tambah Stok Baru
+                </button>
+            </div>
+
+            <div id="stokTableContainer">
+                <div class="empty-state">Memuat data stok...</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Tambah Stok -->
+    <div id="modalTambahStok" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" id="closeModal">&times;</span>
+            <h2>Tambah Stok Bahan Ajar Baru</h2>
+            <form id="formTambahStok">
+                <div class="form-group">
+                    <label for="kodeBarang">Kode Barang:</label>
+                    <input type="text" id="kodeBarang" placeholder="Cth: ASIP4301" required>
+                </div>
+                <div class="form-group">
+                    <label for="namaBarang">Nama Barang:</label>
+                    <input type="text" id="namaBarang" placeholder="Cth: Pengantar Ilmu Komunikasi" required>
+                </div>
+                <div class="form-group">
+                    <label for="jenisBarang">Jenis Barang:</label>
+                    <select id="jenisBarang" required>
+                        <option value="">-- Pilih Jenis --</option>
+                        <option value="BMP">BMP</option>
+                        <option value="Modul">Modul</option>
+                        <option value="Buku">Buku</option>
+                        <option value="Video">Video</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edisiNew">Edisi:</label>
+                    <input type="number" id="edisiNew" placeholder="Cth: 2" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="kodeLokasi">Kode Lokasi:</label>
+                    <input type="text" id="kodeLokasi" placeholder="Cth: 0JKT01" required>
+                </div>
+                <div class="form-group">
+                    <label for="stokNew">Jumlah Stok:</label>
+                    <input type="number" id="stokNew" placeholder="Cth: 100" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="coverNew">Cover (URL):</label>
+                    <input type="text" id="coverNew" placeholder="Cth: img/cover.jpg">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="btnBatalTambah">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan Stok</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let user = (() => {
+            try { return JSON.parse(localStorage.getItem('sittaCurrentUser')); } catch (e) { return null; }
+        })();
+
+        function parseUserFromHash() {
+            try {
+                if (location.hash && location.hash.indexOf('#user=') === 0) {
+                    return JSON.parse(decodeURIComponent(location.hash.slice(6)));
+                }
+            } catch (e) { return null; }
+            return null;
+        }
+
+        if (!user) user = parseUserFromHash();
+
+        function normalizeRole(role) {
+            return String(role || '').toLowerCase();
+        }
+
+        function isAdmin() {
+            return user && normalizeRole(user.role) === 'administrator';
+        }
+
+        function preserveHashToLinks(userObj) {
+            if (!userObj) return;
+            var userHash = '#user=' + encodeURIComponent(JSON.stringify(userObj));
+            document.querySelectorAll('a').forEach(function(a) {
+                var href = a.getAttribute('href');
+                if (!href) return;
+                if (href.indexOf('http') === 0 || href.indexOf('#') === 0 || href.indexOf('mailto:') === 0) return;
+                if (href.indexOf('#user=') !== -1) return;
+                var base = href.split('#')[0];
+                a.setAttribute('href', base + userHash);
+            });
+        }
+
+        const btnLogout = document.getElementById('btnLogout');
+        if (!user) {
+            btnLogout.href = 'login.html';
+            btnLogout.textContent = 'Login';
+        } else {
+            btnLogout.textContent = user.nama;
+            btnLogout.href = '#';
+            btnLogout.title = 'Klik untuk logout';
+            preserveHashToLinks(user);
+            btnLogout.addEventListener('click', function(e) {
+                e.preventDefault();
+                try { localStorage.removeItem('sittaCurrentUser'); } catch (er) {}
+                location.hash = '';
+                window.location.href = 'login.html';
+            });
+        }
+
+        // Data stok (dari data.js atau array baru jika tidak ada)
+        let daftarStok = Array.isArray(window.dataBahanAjar) ? window.dataBahanAjar.slice() : [];
+
+        const btnTambahStok = document.getElementById('btnTambahStok');
+        const modal = document.getElementById('modalTambahStok');
+        const closeModal = document.getElementById('closeModal');
+        const btnBatalTambah = document.getElementById('btnBatalTambah');
+        const formTambahStok = document.getElementById('formTambahStok');
+        const noticeBox = document.getElementById('noticeBox');
+        const restrictedNotice = document.getElementById('restrictedNotice');
+
+        function showNotice(message, type = 'success') {
+            noticeBox.textContent = message;
+            noticeBox.className = 'notice ' + type;
+        }
+
+        function hideNotice() {
+            noticeBox.textContent = '';
+            noticeBox.className = 'notice';
+        }
+
+        function renderStokTable() {
+            const container = document.getElementById('stokTableContainer');
+            if (daftarStok.length === 0) {
+                container.innerHTML = '<div class="empty-state">Belum ada data stok.</div>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th>Kode Barang</th><th>Nama Barang</th><th>Jenis</th><th>Edisi</th><th>Lokasi</th><th>Stok</th></tr></thead><tbody>';
+            daftarStok.forEach(function(item) {
+                html += '<tr>' +
+                    '<td>' + (item.kodeBarang || '-') + '</td>' +
+                    '<td>' + (item.namaBarang || '-') + '</td>' +
+                    '<td>' + (item.jenisBarang || '-') + '</td>' +
+                    '<td>' + (item.edisi || '-') + '</td>' +
+                    '<td>' + (item.kodeLokasi || '-') + '</td>' +
+                    '<td><strong>' + (item.stok || 0) + '</strong></td>' +
+                    '</tr>';
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // Setup modal controls
+        btnTambahStok.addEventListener('click', function() {
+            if (!isAdmin()) {
+                restrictedNotice.style.display = 'block';
+                setTimeout(function() { restrictedNotice.style.display = 'none'; }, 3000);
+                return;
+            }
+            modal.style.display = 'block';
+            formTambahStok.reset();
+        });
+
+        closeModal.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+
+        btnBatalTambah.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+
+        window.addEventListener('click', function(event) {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+
+        // Form submit - tambah stok baru
+        formTambahStok.addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            if (!isAdmin()) {
+                showNotice('Anda tidak memiliki izin untuk menambahkan stok.', 'error');
+                return;
+            }
+
+            const newStok = {
+                id: daftarStok.length + 1,
+                kodeBarang: document.getElementById('kodeBarang').value.trim(),
+                namaBarang: document.getElementById('namaBarang').value.trim(),
+                jenisBarang: document.getElementById('jenisBarang').value.trim(),
+                edisi: parseInt(document.getElementById('edisiNew').value) || 1,
+                kodeLokasi: document.getElementById('kodeLokasi').value.trim(),
+                stok: parseInt(document.getElementById('stokNew').value) || 0,
+                cover: document.getElementById('coverNew').value.trim() || 'img/default-cover.jpg'
+            };
+
+            // Validasi input
+            if (!newStok.kodeBarang || !newStok.namaBarang || !newStok.jenisBarang || !newStok.kodeLokasi) {
+                showNotice('Semua field wajib diisi.', 'error');
+                return;
+            }
+
+            // Tambah ke array
+            daftarStok.push(newStok);
+
+            // Render ulang tabel
+            renderStokTable();
+
+            // Close modal dan reset form
+            modal.style.display = 'none';
+            formTambahStok.reset();
+
+            // Tampilkan notifikasi sukses
+            showNotice('Stok bahan ajar "' + newStok.namaBarang + '" berhasil ditambahkan!', 'success');
+            setTimeout(hideNotice, 3000);
+        });
+
+        // Initial render
+        if (!user) {
+            btnTambahStok.disabled = true;
+            restrictedNotice.style.display = 'block';
+            restrictedNotice.textContent = 'Silakan login terlebih dahulu.';
+        } else if (!isAdmin()) {
+            btnTambahStok.disabled = true;
+        }
+
+        renderStokTable();
+    </script>
+
+</body>
+</html>

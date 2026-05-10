@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Halaman Login</title>
+    <!-- FontAwesome untuk Ikon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body class="login-page">
+
+    <script src="./js/data.js"></script>
+
+    <!-- Form Login Utama -->
+    <div class="login-container">
+        <a href="./assets/logo-ut.jpg" class="brand" style="display: flex; justify-content: center; align-items: center;">
+            <img src="./assets/logo-ut.jpg" alt="Logo Universitas Terbuka" style="height: 200px;">
+        </a>
+        <br>
+        <h2>SITTA LOGIN</h2>
+        
+        <form id="formLogin">
+            <div class="input-group">
+                <i class="fa-solid fa-envelope"></i>
+                <input type="email" id="emailInput" placeholder="Email" required>
+            </div>
+
+            <div class="input-group">
+                <i class="fa-solid fa-key"></i>
+                <input type="password" id="passwordInput" placeholder="Password" required>
+            </div>
+
+            <button type="submit" class="btn btn-login">Login</button>
+        </form>
+
+        <div class="action-links">
+            <button type="button" class="btn btn-link" id="btnLupaPassword">Lupa Password</button>
+            <button type="button" class="btn btn-link" id="btnDaftar">Daftar</button>
+        </div>
+    </div>
+
+    <!-- Modal Box: Lupa Password -->
+    <div id="modalLupaPassword" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" id="closeLupa">&times;</span>
+            <h3>Reset Password</h3>
+            <p>Masukkan email Anda. Kami akan mengirimkan tautan untuk mereset password Anda.</p>
+            <input type="email" placeholder="Masukkan Email Anda">
+            <button type="button" class="btn btn-login" onclick="alert('Tautan reset terkirim!')">Kirim Tautan</button>
+        </div>
+    </div>
+
+    <!-- Modal Box: Daftar -->
+    <div id="modalDaftar" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" id="closeDaftar">&times;</span>
+            <h3>Daftar Akun Baru</h3>
+            <p>Silakan isi detail di bawah ini untuk membuat akun baru.</p>
+            <form id="formDaftar">
+                <input type="text" id="namaInput" placeholder="Nama Lengkap" required>
+                <input type="email" id="emailDaftarInput" placeholder="Email" required>
+                <input type="password" id="passwordDaftarInput" placeholder="Password Baru" required>
+                <input type="text" id="lokasiInput" placeholder="Lokasi (opsional)">
+                <button type="submit" class="btn btn-login">Daftar Sekarang</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- JavaScript untuk Logika Alert & Modal -->
+    <script>
+        const formLogin = document.getElementById('formLogin');
+        const emailInput = document.getElementById('emailInput');
+        const passwordInput = document.getElementById('passwordInput');
+
+        const modalLupa = document.getElementById('modalLupaPassword');
+        const modalDaftarBox = document.getElementById('modalDaftar');
+        const formDaftar = document.getElementById('formDaftar');
+        const btnLupa = document.getElementById('btnLupaPassword');
+        const btnDaftar = document.getElementById('btnDaftar');
+        const closeLupa = document.getElementById('closeLupa');
+        const closeDaftar = document.getElementById('closeDaftar');
+
+        // Login form handler
+        formLogin.addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const email = emailInput.value.trim().toLowerCase();
+            const password = passwordInput.value;
+            const daftarPengguna = Array.isArray(window.dataPengguna) ? window.dataPengguna : [];
+            const penggunaValid = daftarPengguna.find(function(pengguna) {
+                return pengguna.email.toLowerCase() === email && pengguna.password === password;
+            });
+
+            if (penggunaValid) {
+                try {
+                    localStorage.setItem('sittaCurrentUser', JSON.stringify(penggunaValid));
+                } catch (e) {
+                    console.error('Gagal menyimpan data pengguna ke localStorage:', e);
+                }
+
+                alert('Login berhasil. Selamat datang, ' + penggunaValid.nama + '.');
+                formLogin.reset();
+
+                // Redirect dengan menyertakan data user di fragment URL
+                var userHash = '#user=' + encodeURIComponent(JSON.stringify(penggunaValid));
+                window.location.href = 'dashboard.html' + userHash;
+            } else {
+                alert('email/password yang anda masukkan salah');
+            }
+        });
+
+        // Registration form handler
+        formDaftar.addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const nama = document.getElementById('namaInput').value.trim();
+            const email = document.getElementById('emailDaftarInput').value.trim().toLowerCase();
+            const password = document.getElementById('passwordDaftarInput').value;
+            const lokasi = document.getElementById('lokasiInput').value.trim() || 'Umum';
+
+            const daftarPengguna = Array.isArray(window.dataPengguna) ? window.dataPengguna : [];
+
+            // Validasi input
+            if (!nama || !email || !password) {
+                alert('Semua field yang diperlukan harus diisi!');
+                return;
+            }
+
+            // Cek apakah email sudah terdaftar
+            const emailExists = daftarPengguna.find(function(pengguna) {
+                return pengguna.email.toLowerCase() === email;
+            });
+
+            if (emailExists) {
+                alert('Email ini sudah terdaftar. Silakan gunakan email lain.');
+                return;
+            }
+
+            // Validasi format email
+            if (!email.includes('@')) {
+                alert('Format email tidak valid!');
+                return;
+            }
+
+            // Tambah user baru ke array
+            const newUser = {
+                id: daftarPengguna.length + 1,
+                nama: nama,
+                email: email,
+                password: password,
+                role: 'User',
+                lokasi: lokasi
+            };
+
+            window.dataPengguna.push(newUser);
+
+            // Tampilkan pesan sukses
+            alert('Pendaftaran berhasil! Silakan login dengan akun Anda.');
+
+            // Reset form dan tutup modal
+            formDaftar.reset();
+            tutupModal(modalDaftarBox);
+
+            // Isi form login dengan email baru
+            emailInput.value = email;
+            passwordInput.focus();
+        });
+
+        function bukaModal(modal) {
+            modal.style.display = 'block';
+        }
+
+        function tutupModal(modal) {
+            modal.style.display = 'none';
+        }
+
+        btnLupa.addEventListener('click', function() {
+            bukaModal(modalLupa);
+        });
+
+        btnDaftar.addEventListener('click', function() {
+            bukaModal(modalDaftarBox);
+        });
+
+        closeLupa.addEventListener('click', function() {
+            tutupModal(modalLupa);
+        });
+
+        closeDaftar.addEventListener('click', function() {
+            tutupModal(modalDaftarBox);
+        });
+
+        window.addEventListener('click', function(event) {
+            if (event.target === modalLupa) {
+                tutupModal(modalLupa);
+            }
+
+            if (event.target === modalDaftarBox) {
+                tutupModal(modalDaftarBox);
+            }
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard SITTA</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <script src="./js/data.js"></script>
+
+    <nav class="topbar">
+        <a href="dashboard.html" class="brand">SITTA Dashboard</a>
+        <a href="#informasi-bahan-ajar">Informasi Bahan Ajar</a>
+        <a href="tracking.html">Tracking Pengiriman</a>
+        <a href="stok.html" id="hideNav">Stok Bahan Ajar</a>
+
+        <div class="dropdown">
+            <button class="topbar dropdown-btn" type="button">
+                Laporan <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="dropdown-content">
+                <a href="#monitoring-progress">Monitoring Progress DO Bahan Ajar</a>
+                <a href="#rekap-bahan-ajar">Rekap Bahan Ajar</a>
+            </div>
+        </div>
+        <a href="#" id="btnLogout" style="margin-left: auto;">Logout</a>
+    </nav>
+
+    <main class="wrap">
+
+        <section class="card">
+            <h1 id="greetingTitle">Dashboard Aplikasi SITTA</h1>
+            <p id="greetingDescription">Selamat datang di dashboard SITTA.</p>
+            <p class="muted">Waktu lokal: <span id="clockNow">--:--:--</span></p>
+        </section>
+
+        <section class="card">
+            <h2>Menu Utama</h2>
+            <p>Akses cepat ke fitur yang tersedia.</p>
+            <div class="menu-grid">
+                <a class="menu-card" href="#informasi-bahan-ajar">
+                    <i class="fa-solid fa-book"></i>
+                    <h3>Informasi Bahan Ajar</h3>
+                </a>
+                <a class="menu-card" href="tracking.html">
+                    <i class="fa-solid fa-truck-fast"></i>
+                    <h3>Tracking Pengiriman</h3>
+                </a>
+                <a class="menu-card" href="#monitoring-progress">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <h3>Monitoring Progress DO</h3>
+                </a>
+                <a class="menu-card" href="#rekap-bahan-ajar">
+                    <i class="fa-solid fa-file-lines"></i>
+                    <h3>Rekap Bahan Ajar</h3>
+                </a>
+            </div>
+        </section>
+
+        <section id="informasi-bahan-ajar" class="card">
+            <h2>Informasi Bahan Ajar</h2>
+            <p>Daftar buku yang tersedia.</p>
+            <div class="info-grid" id="bahanAjarList"></div>
+        </section>
+
+        <section id="monitoring-progress" class="card">
+            <h2>Monitoring Progress DO Bahan Ajar</h2>
+            <p>Ringkasan status pengiriman bahan ajar.</p>
+            <div id="monitoringProgressContainer">
+                <div class="empty-state">Memuat data monitoring progress...</div>
+            </div>
+        </section>
+
+        <section id="rekap-bahan-ajar" class="card">
+            <h2>Rekap Bahan Ajar</h2>
+            <p>Menu navigasi untuk melihat ringkasan stok dan status bahan ajar.</p>
+            <div class="note">Maintenance</div>
+        </section>
+
+        <section id="histori-transaksi" class="card">
+            <h2>Histori Transaksi Bahan Ajar</h2>
+            <p class="muted">Riwayat transaksi pengiriman bahan ajar.</p>
+            <div id="historiNotice" class="note" style="display:none;"></div>
+            <div id="historiContainer">
+                <div class="empty-state">Memuat data histori transaksi...</div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        function getGreetingByTime(date) {
+            const hour = date.getHours();
+
+            if (hour >= 5 && hour < 11) {
+                return { label: 'Selamat pagi', icon: 'fa-sun', description: 'Semoga aktivitas Anda lancar di pagi hari.' };
+            }
+
+            if (hour >= 11 && hour < 15) {
+                return { label: 'Selamat siang', icon: 'fa-sun', description: 'Waktu yang tepat untuk memantau proses distribusi.' };
+            }
+
+            if (hour >= 15 && hour < 18) {
+                return { label: 'Selamat sore', icon: 'fa-sun', description: 'Waktu yang tepat untuk istirahat sejenak dari aktivitas' };
+            }
+
+            return { label: 'Selamat malam', icon: 'fa-moon', description: 'Jangan lupa istirahat selepas pantau pengiriman.' };
+        }
+
+        function formatTime(date) {
+            return new Intl.DateTimeFormat('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }).format(date);
+        }
+
+        function normalizeCoverPath(coverPath) {
+            const fileName = coverPath.split('/').pop();
+            return './assets/img/' + fileName;
+        }
+
+        function normalizeRole(role) {
+            return String(role || '').toLowerCase();
+        }
+
+        function isAdmin() {
+            return user && normalizeRole(user.role) === 'administrator';
+        }
+
+        function renderBahanAjar() {
+            const container = document.getElementById('bahanAjarList');
+            const daftarBahanAjar = Array.isArray(window.dataBahanAjar) ? window.dataBahanAjar : [];
+            const adminFlag = isAdmin();
+
+            container.innerHTML = daftarBahanAjar.map(function(item) {
+                const coverSrc = normalizeCoverPath(item.cover || '');
+                const stokDisplay = adminFlag ? '<span class="book-stock">' + item.stok + ' eks</span>' : '';
+
+                return '<article class="book-card">' +
+                    '<div class="book-cover"><img src="' + coverSrc + '" alt="Cover ' + item.namaBarang + '"></div>' +
+                    '<div class="book-body">' +
+                        '<h3>' + item.namaBarang + '</h3>' +
+                        '<div class="book-tags">' +
+                            '<span class="tag"><i class="fa-solid fa-barcode"></i>' + item.kodeBarang + '</span>' +
+                            '<span class="tag"><i class="fa-solid fa-tag"></i>' + item.jenisBarang + '</span>' +
+                            '<span class="tag">Edisi ' + item.edisi + '</span>' +
+                        '</div>' +
+                        '<div class="book-footer">' +
+                            '<span>Lokasi: ' + item.kodeLokasi + '</span>' +
+                            stokDisplay +
+                        '</div>' +
+                    '</div>' +
+                '</article>';
+            }).join('');
+        }
+
+        function updateGreeting() {
+            const now = new Date();
+            const greeting = getGreetingByTime(now);
+
+            document.getElementById('greetingTitle').textContent = greeting.label + ', selamat datang di Dashboard SITTA';
+            document.getElementById('greetingDescription').textContent = greeting.description;
+            document.getElementById('clockNow').textContent = formatTime(now);
+        }
+
+        let user = (() => {
+            try {
+                return JSON.parse(localStorage.getItem('sittaCurrentUser'));
+            } catch (e) {
+                return null;
+            }
+        })();
+
+        function parseUserFromHash() {
+            try {
+                if (location.hash && location.hash.indexOf('#user=') === 0) {
+                    return JSON.parse(decodeURIComponent(location.hash.slice(6)));
+                }
+            } catch (e) {
+                return null;
+            }
+            return null;
+        }
+
+        if (!user) {
+            user = parseUserFromHash();
+        }
+
+        function preserveHashToLinks(userObj) {
+            if (!userObj) return;
+            var userHash = '#user=' + encodeURIComponent(JSON.stringify(userObj));
+            document.querySelectorAll('a').forEach(function(a) {
+                var href = a.getAttribute('href');
+                if (!href) return;
+                if (href.indexOf('http') === 0 || href.indexOf('#') === 0 || href.indexOf('mailto:') === 0) return;
+                if (href.indexOf('#user=') !== -1) return;
+                var base = href.split('#')[0];
+                a.setAttribute('href', base + userHash);
+            });
+        }
+
+        const btnLogout = document.getElementById('btnLogout');
+        const hideNav = document.getElementById('hideNav');
+
+        if (!user) {
+            btnLogout.href = 'login.html';
+            btnLogout.textContent = 'Login';
+            hideNav.style.display = 'none';
+        } else {
+            btnLogout.textContent = user.nama;
+            btnLogout.href = '#';
+            btnLogout.title = 'Klik untuk logout';
+            preserveHashToLinks(user);
+
+            // Hide stok link for non-admin users
+            if (!isAdmin()) {
+                hideNav.style.display = 'none';
+            }
+
+            btnLogout.addEventListener('click', function(event) {
+                event.preventDefault();
+                try { localStorage.removeItem('sittaCurrentUser'); } catch (e) {}
+                // clear hash to avoid leaking user data after logout
+                location.hash = '';
+                window.location.href = 'login.html';
+            });
+        }
+
+        // --- Histori Transaksi (embedded) ---
+        function getStatusBadgeClass(status) {
+            const normalizedStatus = String(status || '').toLowerCase();
+            if (normalizedStatus.includes('selesai')) return 'status-selesai';
+            if (normalizedStatus.includes('dikirim')) return 'status-dikirim';
+            if (normalizedStatus.includes('perjalanan')) return 'status-perjalanan';
+            return 'status-menunggu';
+        }
+
+        function getLastJourney(perjalanan) {
+            if (!Array.isArray(perjalanan) || perjalanan.length === 0) return { waktu: '-', keterangan: 'Tidak ada data perjalanan' };
+            return perjalanan[perjalanan.length - 1];
+        }
+
+        function renderHistori() {
+            const container = document.getElementById('historiContainer');
+            const notice = document.getElementById('historiNotice');
+            const daftarTracking = window.dataTracking || {};
+            const entries = Object.entries(daftarTracking);
+
+            if (!user) {
+                notice.style.display = 'block';
+                notice.textContent = 'Silakan login terlebih dahulu untuk melihat histori transaksi.';
+                container.innerHTML = '<div class="empty-state">Silakan login.</div>';
+                return;
+            }
+
+            // Filter entries for non-admin users
+            const filtered = entries.filter(function([key, item]) {
+                if (isAdmin()) return true;
+                return String(item.nama || '').toLowerCase() === String(user.nama || '').toLowerCase();
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="empty-state">Tidak ada histori transaksi untuk akun Anda.</div>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th>Nomor DO</th><th>Nama Penerima</th><th>Total</th><th>Status Terakhir</th><th>Keterangan Terakhir</th></tr></thead><tbody>';
+
+            filtered.forEach(function([key, item]) {
+                const lastJourney = getLastJourney(item.perjalanan);
+                const statusClass = getStatusBadgeClass(item.status);
+
+                html +=
+                    '<tr>' +
+                    '<td><strong>' + (item.nomorDO || key) + '</strong></td>' +
+                    '<td>' + (item.nama || '-') + '</td>' +
+                    '<td>' + (item.total || '-') + '</td>' +
+                    '<td><span class="status-badge ' + statusClass + '">' + (item.status || '-') + '</span></td>' +
+                    '<td>' + (lastJourney.keterangan || '-') + '</td>' +
+                    '</tr>'
+                    ;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function getBarangDetail(kodeBarang) {
+            const daftarBahanAjar = Array.isArray(window.dataBahanAjar) ? window.dataBahanAjar : [];
+            return daftarBahanAjar.find(function(item) {
+                return item.kodeBarang === kodeBarang;
+            });
+        }
+
+        function renderMonitoringProgress() {
+            const container = document.getElementById('monitoringProgressContainer');
+            const daftarTracking = window.dataTracking || {};
+            const entries = Object.entries(daftarTracking);
+
+            if (entries.length === 0) {
+                container.innerHTML = '<div class="empty-state">Tidak ada data pengiriman.</div>';
+                return;
+            }
+
+            // Calculate statistics
+            let countInTransit = 0;
+            let countDelivered = 0;
+            let countPending = 0;
+            const inTransitItems = [];
+
+            entries.forEach(function([key, item]) {
+                const status = String(item.status || '').toLowerCase();
+                if (status.includes('perjalanan')) {
+                    countInTransit++;
+                    inTransitItems.push(item);
+                } else if (status.includes('selesai') || status.includes('dikirim')) {
+                    countDelivered++;
+                } else {
+                    countPending++;
+                }
+            });
+
+            // Build summary cards HTML
+            let html = '<div class="summary-grid">' +
+                '<div class="summary-card in-transit">' +
+                    '<div class="label">Sedang Terkirim</div>' +
+                    '<div class="number">' + countInTransit + '</div>' +
+                    '<div class="label">pengiriman</div>' +
+                '</div>' +
+                '<div class="summary-card delivered">' +
+                    '<div class="label">Selesai Dikirim</div>' +
+                    '<div class="number">' + countDelivered + '</div>' +
+                    '<div class="label">pengiriman</div>' +
+                '</div>' +
+                '<div class="summary-card pending">' +
+                    '<div class="label">Menunggu</div>' +
+                    '<div class="number">' + countPending + '</div>' +
+                    '<div class="label">pengiriman</div>' +
+                '</div>' +
+                '</div>';
+
+            // Build table of items in transit
+            if (inTransitItems.length > 0) {
+                html += '<h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 16px;">Daftar Barang Sedang Terkirim</h3>';
+                html += '<table><thead><tr><th>Nomor DO</th><th>Nama Barang</th><th>Penerima</th><th>Ekspedisi</th><th>Tanggal Kirim</th><th>Status</th></tr></thead><tbody>';
+
+                inTransitItems.forEach(function(item) {
+                    const barang = getBarangDetail(item.paket);
+                    const namaBarang = barang ? barang.namaBarang : item.paket || '-';
+                    const statusClass = getStatusBadgeClass(item.status);
+
+                    html +=
+                        '<tr>' +
+                        '<td><strong>' + (item.nomorDO || '-') + '</strong></td>' +
+                        '<td>' + namaBarang + '</td>' +
+                        '<td>' + (item.nama || '-') + '</td>' +
+                        '<td>' + (item.ekspedisi || '-') + '</td>' +
+                        '<td>' + (item.tanggalKirim || '-') + '</td>' +
+                        '<td><span class="status-badge ' + statusClass + '">' + (item.status || '-') + '</span></td>' +
+                        '</tr>';
+                });
+
+                html += '</tbody></table>';
+            } else {
+                html += '<div class="empty-state" style="margin-top: 24px;">Tidak ada barang yang sedang terkirim saat ini.</div>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        renderBahanAjar();
+        renderHistori();
+        renderMonitoringProgress();
+        updateGreeting();
+        setInterval(updateGreeting, 1000);
+    </script>
+
+</body>
+</html>
